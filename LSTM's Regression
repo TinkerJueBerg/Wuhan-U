@@ -1,0 +1,141 @@
+import pandas as pd
+import torch
+from torch.autograd import Variable
+import torch.nn as nn
+import pandas as pd 
+from pandas import DataFrame
+import matplotlib.pyplot as plt
+import numpy as np
+import torch.nn.functional as F
+
+path = r'd:/virus_beta.xlsx'
+df = pd.DataFrame(pd.read_excel(path))
+trainX = df['Datetime']
+
+#print(df)
+days = len(df['Datetime']) 
+#print(days)
+df = df.drop('Datetime',axis=1)           
+#print(df)
+#softmax = df.iloc[days-1,0]
+softmax = 100
+
+
+for col in range(days):
+    #trainX[col] *= 100
+    for row in range(2):
+        df.iloc[col,row] = df.iloc[col,row] / softmax
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+coefficient = df.corr(method = 'pearson')
+#print(df,coefficient)
+x_train = np.array(trainX)  #训练数据
+x_train = x_train.reshape(17,1,1)
+y_train = np.array(df)      #训练数据目标值
+
+
+inputs = torch.from_numpy(x_train)
+labels = torch.from_numpy(y_train)
+inputs = inputs.float()
+lables = labels.float()
+#tests = torch.FloatTensor(inputs)
+print(inputs.shape,labels.shape)
+
+class Net(nn.Module):
+    def __init__(self, seq_len, hidden_dim, output_dim, batch_size, num_layers,
+                 dropout=0.2, bidirectional=False):
+        super(Net,self).__init__()
+
+        self.seq_len = seq_len
+    
+        self.hidden_dim = hidden_dim
+        
+        self.output_dim = output_dim
+        
+        self.batch_size = batch_size
+        self.bidirectional = bidirectional
+        self.num_layers = num_layers
+            
+        self.lstm = torch.nn.LSTM(seq_len, hidden_dim)
+        self.fc = torch.nn.Linear(hidden_dim, output_dim)
+        self.dropout = torch.nn.Dropout(dropout)
+        
+        
+    def forward(self, x):
+        #例如输入【200，32】数据，200是序列长度 seq_length, 32 是批大小batch_size,
+        #经过 embedding 层，批数据中每个 token 都被替换为词向量，大小变为【200，32，100】即【seq_length, batch_size, emd_dim]
+        
+        # 初始化 h_0
+        h_0 = self._init_state(batch_size=1)
+        out, (h_t, c_t) = self.lstm(x, h_0)
+        self.dropout(h_t)
+        #取最后一个时刻的输出（形状为 [batch_size, hidden_dim]）传给线性层，将其映射到输出类别，
+        y_pred = self.fc(h_t[-1])
+        y_pred = F.log_softmax(y_pred)
+        return y_pred
+    
+    
+    def _init_state(self, batch_size=1):
+        weight = next(self.parameters()).data
+        return (
+            weight.new(self.num_layers, batch_size, self.hidden_dim).zero_(),
+            weight.new(self.num_layers, batch_size, self.hidden_dim).zero_()
+        )
+    
+net = Net(seq_len=1,hidden_dim=10,output_dim=2,batch_size=1,bidirectional=False,num_layers=1)
+print(net)
+
+criterion = torch.nn.MSELoss()
+optimizer = torch.optim.SGD(net.parameters(),lr=0.01,momentum=0.9)
+
+Con_np = []
+Sus_np = []
+Dea_np = []
+Hea_np = []
+#Hea_np = np.array([])
+
+for step in range(days):
+    if step:
+        optimizer.zero_grad()
+        train_loss.backward()
+        optimizer.step()
+    preds = net(inputs)
+    #print(preds)
+    train_preds = preds[:]
+    train_labels = labels[-1]      
+    #print(train_preds.size())
+    train_preds = train_preds.squeeze(0)
+    #print(train_preds.size(),train_labels.size())
+    yosou = train_preds.float()
+    jisai = train_labels.float()
+    train_loss = criterion(yosou,jisai)
+    for i in range(4):
+        #yosou = train_preds.float()
+        #jisai = train_labels.float()
+        #train_loss = criterion(yosou,jisai)
+        if i == 0:
+            #train_loss.view(1,0)
+            print('------',yosou,'-----',jisai,'-----',train_loss,'((((((')
+            Con_np.append(train_loss)
+        elif i == 1:
+            Sus_np.append(train_loss)
+            #print('*****',yosou,'******',jisai,'*****',train_loss)
+        elif i == 2:
+            Dea_np.append(train_loss)
+        else:
+            Hea_np.append(train_loss)
+        
+
+x = [i for i in range(days)]
+plt.plot(x,Con_np)
+#plt.plot(x,Sus_np)
+#plt.plot(x,Dea_np)
+#plt.plot(x,Hea_np)
+plt.show()
+
+        
+
+kyou = torch.tensor([18])
+kyou = kyou.float().unsqueeze(1).unsqueeze(2)
+#print('------',kyou.size())
+Kyou = net(kyou)
+print(kyou,Kyou)
